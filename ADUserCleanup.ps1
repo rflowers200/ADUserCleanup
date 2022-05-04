@@ -20,6 +20,7 @@
     .\ADUserCleanup.ps1 -Incactive x 
     .\ADUserCleanup.ps1 -Incactive 30
     .\ADUserCleanup.ps1 -Inactive -x -checkonly -Y
+     .\ADUserCleanup.ps1 -Inputefile Path to Inputfile
     
 .NOTES
     Author: Richard Flowers
@@ -45,7 +46,12 @@ param (
     [Parameter(Mandatory = $false)]
     [AllowNull()]
     [AllowEmptyString()]
-    [String]$Checkonly
+    [String]$Checkonly,
+    
+    [Parameter(Mandatory = $false)]
+    [AllowNull()]
+    [AllowEmptyString()]
+    [string]$InputFile
  
 )
 
@@ -69,6 +75,8 @@ If (!(Get-module ActiveDirectory)) {
     Import-Module ActiveDirectory -ErrorAction Stop
 }
 
+
+
 #Days to check for Default 30 Days
 if ($InactiveDays -eq '' -or $InactiveDays -eq $null) {
     $InactiveDays = 30
@@ -90,11 +98,29 @@ Else {
     $Name = "Disabled Users"
 
     #Creates OU if it doesn't already exists
-    CreateOU -name "$Names" -path "$Path" -description "Disabled Inactive Users"
+    CreateOU -name "$Name" -path "$Path" -description "Disabled Inactive Users"
 
     #Get list of User who have not logged on in x Days
-    $DisableUsers = Get-ADUser -Filter { LastLogonTimeStamp -lt $Days -and enabled -eq $true }  
-    foreach ($UsertoDisable in $DisableUsers) {
+    if ($InputFile) {
+        #Create Array List
+        $DisabledUserArrayList = [System.Collections.ArrayList]::new()
+        #Get the content of Inputfile into csv format
+        $DisableUsersImport = Import-CSV $InputFile
+        #only reads the name portion for Devices device.name
+        foreach ($SelectUser in $DisableUsersImport.name) {
+            #Adds each device to arraylist suppressing the screen output
+            [void]$DisabledUserArrayList.add($SelectUser)    
+        }
+    }
+    Else(
+        #If no Inputfile
+        $DisabledUserArrayList = Get-ADUser -Filter { LastLogonTimeStamp -lt $Days -and enabled -eq $true }  
+    )
+
+
+
+    
+    foreach ($UsertoDisable in $DisabledUserArrayList) {
         #Disable Active Directory Account
         Try {
             Disable-Account
